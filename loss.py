@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
 #-*- coding:utf-8 -*-
 import tensorflow as tf
+from tensorflow.keras.losses import Loss
 
 # Smooth L1 loss function
-def smooth_L1_loss(x, beta=1.0, reduction='mean'):
-    '''
-    x =(y_true-y_pred)
-    The data must have ground truth.
-    '''
-    # 0.5 * (x**2)
-    mul = tf.math.multiply(0.5, tf.math.pow(x, 2.0)) / beta
-    # |x|-0.5
-    sub = tf.math.substract(tf.math.abs(x), 0.5) * beta
-    # list of |x| < 1.0
-    cond = tf.math.less(tf.math.abs(x), 1.0)
-    out = tf.where(cond, mul, sub)
+class SmoothL1Loss(Loss):
+    def __init__(self, beta=1.0, name='smooth_1l_loss', reduction='mean'):
+        self.beta = 1.0
+        self.name = name
+        self.reduction = reduction
 
-    if reduction == 'sum':
-        out = tf.math.reduce_sum(out)
-    else:
-        out = tf.math.reduce_mean(out)
+    def call(self, y_true, y_pred):
+        error     = tf.substract(y_pred, y_true)
+        abs_error = tf.abs(error)
+        half      = tf.convert_to_tensor(0.5, dtype=abs_error.dtype)
 
-    return out
+        loss =  tf.where(
+                abs_error < self.beta,
+                (half * tf.square(error)) / self.beta,
+                abs_error - half * self.beta
+            )
+
+        if self.reduction == 'mean':
+            return tf.reduce_mean(loss, axis=-1)
+        else:
+            return tf.reduce_sum(loss, axis=-1)
